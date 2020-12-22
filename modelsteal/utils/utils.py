@@ -3,6 +3,8 @@ import os.path as osp
 import torch
 import numpy as np
 from scipy.special import comb
+from torchvision import transforms
+unloader = transforms.ToPILImage()
 
 def create_dir(dir_path):
     """
@@ -26,6 +28,14 @@ def to_one_hot(i, n_classes=None):
     a = np.zeros(n_classes, 'uint8')  # 这里先按照分类数量构建一个全0向量
     a[i] = 1  # 然后点亮需要onehot的位数。
     return a
+
+# 输入tensor变量
+# 输出PIL格式图片
+def tensor_to_pil(tensor):
+    image = tensor.cpu().clone()
+    image = image.squeeze(0)
+    image = unloader(image)
+    return image
 
 def extract_parameter(model):
     """
@@ -58,7 +68,7 @@ def count_db(y_t):
     :param y_t:
     :return:
     """
-    class_size = len(y_t)
+    class_size = len(y_t[0])
     comb_num = int(comb(class_size, 2))
     db_indices = []
     for i, data in enumerate(y_t):

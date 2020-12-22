@@ -10,6 +10,7 @@ import modelsteal.config as cfg
 import os
 from modelsteal import datasets
 from scipy.special import comb
+import modelsteal.models.zoo as zoo
 
 
 def get_model(inputs_shape):
@@ -103,6 +104,7 @@ def main():
         # 重置环境初始状态
         # 初始化一个substitude model
         state = env.Reset(pretrained=True, output_classes=class_size)
+        # state = zoo.get_net('lenet', 'mnist', pretrained=True, num_classes= class_size)
         state.to(device)
         # for batch_idx, (data, target) in enumerate(queryset):
 
