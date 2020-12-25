@@ -10,10 +10,10 @@ import modelsteal.config as cfg
 import os
 from modelsteal import datasets
 from scipy.special import comb
-import modelsteal.models.zoo as zoo
+from modelsteal.victim.blackbox import Blackbox
 
 
-def get_model(inputs_shape):
+def get_model(inputs_shape, output_shape):
     # 第一部分
     input = tl.layers.Input(inputs_shape)
     # h1 = tl.layers.Dense(16, tf.nn.relu, W_init=tf.initializers.GlorotUniform())(input)
@@ -26,7 +26,7 @@ def get_model(inputs_shape):
     # advantage = tl.layers.ElementwiseLambda(lambda x, y: x - y)([avalue, mean])  # a - avg(a)
 
     # output = tl.layers.ElementwiseLambda(lambda x, y: x + y)([svalue, avalue])
-    output = tl.layers.Dense(4, act=None, W_init=tf.random_uniform_initializer(0, 0.01), b_init=None, name='q_a_s')(
+    output = tl.layers.Dense(output_shape, act=None, W_init=tf.random_uniform_initializer(0, 0.01, seed=666), b_init=None, name='q_a_s')(
         input)
     return tl.models.Model(inputs=input, outputs=output)
 
@@ -51,6 +51,8 @@ def main():
     parser.add_argument('-d', '--device_id', metavar='D', type=int, help='Device id. -1 for CPU.', default=-1)
     parser.add_argument('--budget', metavar='N', type=int, help='Size of transfer set to construct',
                         required=True)
+    parser.add_argument('--victim_model_dir', metavar='PATH', type=str,
+                        help='Path to victim model. Should contain files "model_best.pth.tar" and "params.json"')
     # parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
     #                     help='learning rate (default: 0.01)')
     # parser.add_argument('--momentum', type=float, default=0.5, metavar='M',
@@ -93,6 +95,10 @@ def main():
     else:
         queryset = datasets.__dict__[queryset_name](train=True, transform=transform)
 
+    # to be changed in the future
+    transform = datasets.modelfamily_to_transforms[modelfamily]['train']
+    victim_queryset = datasets.__dict__[queryset_name](train=True, transform=transform)
+
     # classes of dataset
     class_size = len(queryset.classes)
     # comb_num is the output dimension of q_network
@@ -114,7 +120,7 @@ def main():
             weight_list = utils.extract_parameter(state)
 
             # 初始化Q network
-            q_network = get_model([None, len(weight_list)])
+            q_network = get_model([None, len(weight_list)], comb_num)
             q_network.train()
 
             # 把当前状态（权重矩阵）输入到Q网络 得到Action数组
@@ -122,18 +128,20 @@ def main():
 
             # 找一个Q值最大的action
             # 加噪声
-            a = np.max(allQ, 1)
+            a = np.argmax(allQ)
 
-            step = env.Step(action=a, state=state, queryset=queryset, batch_size=params['batch_size'], budget=params['budget'])
+            victim_model = Blackbox.from_modeldir(params['victim_model_dir'], device)
+            step = env.Step(action=a, state=state, victim_model=victim_model , victim_queryset=victim_queryset, queryset=queryset, batch_size=params['batch_size'], budget=params['budget'], device=device)
             # 输入到环境，获得下一步的state，reward，done
-            s1, r, d, _ = step.step()
+            new_state, reward = step.step()
 
             # 把new-state 再放入Q，得到
-            # newQ = qnetwork(np.asarray([to_one_hot(s1, 16)], dtype=np.float32)).numpy()
+            new_weight_list = utils.extract_parameter(new_state)
+            newQ = q_network(np.asarray([new_weight_list], dtype=np.float32)).numpy()
 
             # 找一个最合适的action
-            # a = np.XXX(newQ, 1)
-            # targetQ = r + l * a
+            a = np.argmax(newQ)
+            targetQ = reward + 0.001 * a
             print()
 
 

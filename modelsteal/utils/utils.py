@@ -4,7 +4,9 @@ import torch
 import numpy as np
 from scipy.special import comb
 from torchvision import transforms
+
 unloader = transforms.ToPILImage()
+
 
 def create_dir(dir_path):
     """
@@ -15,6 +17,7 @@ def create_dir(dir_path):
     if not osp.exists(dir_path):
         print('Path {} does not exist. Creating it...'.format(dir_path))
         os.makedirs(dir_path)
+
 
 ## 把分类的数字表示，变成onehot表示。
 # 例如有4类，那么第三类变为：[0,0,1,0]的表示。
@@ -29,6 +32,7 @@ def to_one_hot(i, n_classes=None):
     a[i] = 1  # 然后点亮需要onehot的位数。
     return a
 
+
 # 输入tensor变量
 # 输出PIL格式图片
 def tensor_to_pil(tensor):
@@ -36,6 +40,7 @@ def tensor_to_pil(tensor):
     image = image.squeeze(0)
     image = unloader(image)
     return image
+
 
 def extract_parameter(model):
     """
@@ -48,6 +53,7 @@ def extract_parameter(model):
         temp_list = torch.flatten(parameters).detach().numpy().tolist()
         result_list.extend(temp_list)
     return result_list
+
 
 def count_db_detail(indices, comb_num):
     """
@@ -62,6 +68,7 @@ def count_db_detail(indices, comb_num):
     result = (-0.5) * x * x + 8.5 * x + y - 1
     return int(result)
 
+
 def count_db(y_t):
     """
     count the decision bound of the batch y_t
@@ -72,7 +79,17 @@ def count_db(y_t):
     comb_num = int(comb(class_size, 2))
     db_indices = []
     for i, data in enumerate(y_t):
-        indices  = torch.topk(data, 2).indices
+        indices = torch.topk(data, 2).indices
         db_indice = count_db_detail(indices, comb_num)
         db_indices.append(db_indice)
     return db_indices
+
+
+def get_trainingdata_by_index(queryset, index_list):
+    """
+    get training data from queryset according to index_list
+    :param queryset:
+    :param index_list:
+    :return:
+    """
+    return torch.stack([queryset[i][0] for i in index_list])

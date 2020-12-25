@@ -20,7 +20,7 @@ class DecisionBoundStrategy(object):
     def get_db_result(self):
         start_B = 0
         # end_B = len(self.queryset.data)
-        end_B = 8
+        end_B = 128
         db_indices = []
         with tqdm(total=end_B) as pbar:
             for t, B in enumerate(range(start_B, end_B, self.batch_size)):

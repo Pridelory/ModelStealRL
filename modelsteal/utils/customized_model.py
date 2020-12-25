@@ -2,18 +2,26 @@
 """This is a short description.
 Replace this with a more detailed description of what this file contains.
 """
+import argparse
 import os.path as osp
+import os
 import time
 from datetime import datetime
 from collections import defaultdict as dd
+
 import numpy as np
+
+from tqdm import tqdm
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import torchvision.models as torch_models
-import knockoff.utils.utils as knockoff_utils
+
+import modelsteal.config as cfg
+import modelsteal.utils.utils as modelsteal_utils
 
 __author__ = "Tribhuvanesh Orekondy"
 __maintainer__ = "Tribhuvanesh Orekondy"
@@ -144,20 +152,18 @@ def test_step(model, test_loader, criterion, device, epoch=0., silent=False, wri
     return test_loss, acc
 
 
-def train_model(model, trainset, out_path, batch_size=64, criterion_train=None, criterion_test=None, testset=None,
+def train_model(model, trainset, batch_size=1, criterion_train=None, criterion_test=None, testset=None,
                 device=None, num_workers=10, lr=0.1, momentum=0.5, lr_step=30, lr_gamma=0.1, resume=None,
-                epochs=100, log_interval=100, weighted_loss=False, checkpoint_suffix='', optimizer=None, scheduler=None,
+                epochs=2, log_interval=100, weighted_loss=False, checkpoint_suffix='', optimizer=None, scheduler=None,
                 writer=None, **kwargs):
     if device is None:
         device = torch.device('cuda')
-    if not osp.exists(out_path):
-        knockoff_utils.create_dir(out_path)
-    run_id = str(datetime.now())
 
     # Data loaders
     train_loader = DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
     if testset is not None:
-        test_loader = DataLoader(testset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
+        test_loader = DataLoader(testset, batch_size=batch_size, shuffle=False, num_workers=num_workers,
+                                 pin_memory=True)
     else:
         test_loader = None
 
@@ -178,7 +184,7 @@ def train_model(model, trainset, out_path, batch_size=64, criterion_train=None, 
 
     # Optimizer
     if criterion_train is None:
-        criterion_train = nn.CrossEntropyLoss(reduction='mean', weight=weight)
+        criterion_train = nn.KLDivLoss(reduction='mean')
     if criterion_test is None:
         criterion_test = nn.CrossEntropyLoss(reduction='mean', weight=weight)
     if optimizer is None:
@@ -203,14 +209,6 @@ def train_model(model, trainset, out_path, batch_size=64, criterion_train=None, 
         else:
             print("=> no checkpoint found at '{}'".format(model_path))
 
-    # Initialize logging
-    log_path = osp.join(out_path, 'train{}.log.tsv'.format(checkpoint_suffix))
-    if not osp.exists(log_path):
-        with open(log_path, 'w') as wf:
-            columns = ['run_id', 'epoch', 'split', 'loss', 'accuracy', 'best_accuracy']
-            wf.write('\t'.join(columns) + '\n')
-
-    model_out_path = osp.join(out_path, 'checkpoint{}.pth.tar'.format(checkpoint_suffix))
     for epoch in range(start_epoch, epochs + 1):
         train_loss, train_acc = train_step(model, train_loader, criterion_train, optimizer, epoch, device,
                                            log_interval=log_interval)
@@ -231,13 +229,5 @@ def train_model(model, trainset, out_path, batch_size=64, criterion_train=None, 
                 'optimizer': optimizer.state_dict(),
                 'created_on': str(datetime.now()),
             }
-            torch.save(state, model_out_path)
-
-        # Log
-        with open(log_path, 'a') as af:
-            train_cols = [run_id, epoch, 'train', train_loss, train_acc, best_train_acc]
-            af.write('\t'.join([str(c) for c in train_cols]) + '\n')
-            test_cols = [run_id, epoch, 'test', test_loss, test_acc, best_test_acc]
-            af.write('\t'.join([str(c) for c in test_cols]) + '\n')
-
+            # torch.save(state, model_out_path)
     return model
