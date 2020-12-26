@@ -113,7 +113,7 @@ def main():
         # state = zoo.get_net('lenet', 'mnist', pretrained=True, num_classes= class_size)
         state.to(device)
         # for batch_idx, (data, target) in enumerate(queryset):
-
+        rAll = 0
         # episode
         for j in range(99):
             # 从state网络中提取权重listm(s)
@@ -122,13 +122,15 @@ def main():
             # 初始化Q network
             q_network = get_model([None, len(weight_list)], comb_num)
             q_network.train()
+            train_weights = q_network.trainable_weights  # 模型的参数
+            optimizer = tf.optimizers.SGD(learning_rate=0.1)  # 定义优化器
 
             # 把当前状态（权重矩阵）输入到Q网络 得到Action数组
             allQ = q_network(np.asarray([weight_list], dtype=np.float32)).numpy()
 
             # 找一个Q值最大的action
             # 加噪声
-            a = np.argmax(allQ)
+            a = np.argmax(allQ, 1)
 
             victim_model = Blackbox.from_modeldir(params['victim_model_dir'], device)
             step = env.Step(action=a, state=state, victim_model=victim_model , victim_queryset=victim_queryset, queryset=queryset, batch_size=params['batch_size'], budget=params['budget'], device=device)
@@ -140,9 +142,24 @@ def main():
             newQ = q_network(np.asarray([new_weight_list], dtype=np.float32)).numpy()
 
             # 找一个最合适的action
-            a = np.argmax(newQ)
-            targetQ = reward + 0.001 * a
-            print()
+            maxQ1 = np.max(newQ)
+            targetQ = allQ
+            targetQ[0, a[0]] = reward + 0.001 * maxQ1
+
+            ## 利用自动求导 进行更新。
+            with tf.GradientTape() as tape:
+                _qvalues = q_network(np.asarray([weight_list], dtype=np.float32))
+                # _qvalues和targetQ的差距就是loss。这里衡量的尺子是mse
+                _loss = tl.cost.mean_squared_error(targetQ, _qvalues, is_mean=False)
+                # 同梯度带求导对网络参数求导
+            grad = tape.gradient(_loss, train_weights)
+            # 应用梯度到网络参数求导
+            optimizer.apply_gradients(zip(grad, train_weights))
+
+            # 累计reward，并且把s更新为newstate
+            rAll += reward
+            state = new_state
+
 
 
 if __name__ == '__main__':
