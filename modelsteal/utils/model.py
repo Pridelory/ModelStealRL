@@ -13,7 +13,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import torchvision.models as torch_models
-import modelsteal.utils.utils as knockoff_utils
+import modelsteal.utils.utils as modelsteal_utils
 
 __author__ = "Tribhuvanesh Orekondy"
 __maintainer__ = "Tribhuvanesh Orekondy"
@@ -151,7 +151,7 @@ def train_model(model, trainset, out_path, batch_size=64, criterion_train=None, 
     if device is None:
         device = torch.device('cuda')
     if not osp.exists(out_path):
-        knockoff_utils.create_dir(out_path)
+        modelsteal_utils.create_dir(out_path)
     run_id = str(datetime.now())
 
     # Data loaders

@@ -51,6 +51,8 @@ def main():
     parser.add_argument('-d', '--device_id', metavar='D', type=int, help='Device id. -1 for CPU.', default=-1)
     parser.add_argument('--budget', metavar='N', type=int, help='Size of transfer set to construct',
                         required=True)
+    parser.add_argument('--substitude_model_dir', metavar='PATH', type=str,
+                        help='Path to substitude model. Should contain files "model_best.pth.tar" and "params.json"')
     parser.add_argument('--victim_model_dir', metavar='PATH', type=str,
                         help='Path to victim model. Should contain files "model_best.pth.tar" and "params.json"')
     # parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
@@ -109,7 +111,8 @@ def main():
 
         # 重置环境初始状态
         # 初始化一个substitude model
-        state = env.Reset(pretrained=True, output_classes=class_size)
+        # state = env.Reset(pretrained=True, output_classes=class_size)
+        state = Blackbox.from_modeldir(params['substitude_model_dir'], device)
         # state = zoo.get_net('lenet', 'mnist', pretrained=True, num_classes= class_size)
         state.to(device)
         # for batch_idx, (data, target) in enumerate(queryset):
