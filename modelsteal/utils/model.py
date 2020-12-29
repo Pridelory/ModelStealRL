@@ -13,7 +13,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import torchvision.models as torch_models
-import knockoff.utils.utils as knockoff_utils
+import modelsteal.utils.utils as knockoff_utils
 
 __author__ = "Tribhuvanesh Orekondy"
 __maintainer__ = "Tribhuvanesh Orekondy"

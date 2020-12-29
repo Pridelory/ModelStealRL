@@ -17,7 +17,7 @@ class DecisionBoundStrategy(object):
     def _restart(self):
         self.idx_set = (range(len(self.queryset)))
 
-    def get_db_result(self):
+    def get_db_result(self, j):
         start_B = 0
         # end_B = len(self.queryset.data)
         end_B = 128
@@ -26,6 +26,9 @@ class DecisionBoundStrategy(object):
             for t, B in enumerate(range(start_B, end_B, self.batch_size)):
                 idx_set = range(B, B + self.batch_size, 1)
                 x_t = torch.stack([self.queryset[i][0] for i in idx_set])
+                # if j == 1:
+                #     temp = utils.tensor_to_pil(x_t[0])
+                #     temp.show()
                 y_t = self.substitude_model(x_t).cpu()
                 # get the decision bound
                 db_indice = utils.count_db(y_t)

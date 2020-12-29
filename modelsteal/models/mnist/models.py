@@ -1,7 +1,8 @@
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision
 
-__all__ = ['lenet']
+__all__ = ['lenet', 'resnet']
 
 
 class LeNet(nn.Module):
@@ -29,3 +30,21 @@ class LeNet(nn.Module):
 
 def lenet(num_classes, **kwargs):
     return LeNet(num_classes, **kwargs)
+
+class Reset(nn.Module):
+    def __init__(self, pretrained, output_classes=10, **kwargs):
+        super(Reset, self).__init__()
+        # self.conv = nn.Conv2d(1, 3, kernel_size=1)
+        self.reset = torchvision.models.resnet18(pretrained)
+        self.fc = nn.Linear(1000, output_classes)
+
+    def forward(self, x):
+        # x = self.conv(x)
+        x = self.reset(x)
+        x = self.fc(x)
+        x = F.softmax(x)
+        return x
+
+def resnet(num_classes, **kwargs):
+    return Reset(num_classes, **kwargs)
+

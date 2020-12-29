@@ -6,7 +6,7 @@ from modelsteal.adversary.adaptive.reward_strategy import RewardStrategy
 import modelsteal.utils.customized_model as model_utils
 from torch.utils.data import TensorDataset
 from torch.utils.data import DataLoader
-
+import torch.nn.functional as F
 
 class TrainSet(object):
     def __init__(self, train_data, train_label):
@@ -28,6 +28,7 @@ class Reset(nn.Module):
         # x = self.conv(x)
         x = self.reset(x)
         x = self.fc(x)
+        x = F.softmax(x)
         return x
 
 
@@ -43,7 +44,7 @@ class Step:
         self.budget = budget
         self.device = device
 
-    def step(self):
+    def step(self, j):
         """
         1.数据集根据state网络分成不同决策边界的cluster，
         2.action去选择某个特定的cluster i的前k个样本
@@ -52,11 +53,15 @@ class Step:
         """
         # 根据当前state网络逻辑划分数据集
         strategy = DecisionBoundStrategy(self.state, self.queryset, self.batch_size, self.budget)
-        db_indice_list = strategy.get_db_result()
+        db_indice_list = strategy.get_db_result(j)
 
+        print(len(set(db_indice_list)))
         # action去选择某个特定的cluster i的前k个样本
         # 获取victim的query set下标
         index_list = [i for i in range(len(db_indice_list)) if db_indice_list[i] == self.action]
+
+        # if j == 0:
+        #     index_list = [38]
 
         # 根据index_list选样本
         local_choosen_samples = utils.get_trainingdata_by_index(self.queryset, index_list)
@@ -74,4 +79,4 @@ class Step:
         victim_trained_info = reward_strategy.get_victim_trained_info()
         trainset = TensorDataset(local_choosen_samples, victim_trained_info)
         new_state = model_utils.train_model(self.state, trainset, device=self.device)
-        return new_state, reward
+        return self.state, reward

@@ -135,7 +135,7 @@ def main():
             victim_model = Blackbox.from_modeldir(params['victim_model_dir'], device)
             step = env.Step(action=a, state=state, victim_model=victim_model , victim_queryset=victim_queryset, queryset=queryset, batch_size=params['batch_size'], budget=params['budget'], device=device)
             # 输入到环境，获得下一步的state，reward，done
-            new_state, reward = step.step()
+            new_state, reward = step.step(j)
 
             # 把new-state 再放入Q，得到
             new_weight_list = utils.extract_parameter(new_state)
@@ -158,7 +158,7 @@ def main():
 
             # 累计reward，并且把s更新为newstate
             rAll += reward
-            state = new_state
+            # state = new_state
 
 
 

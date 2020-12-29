@@ -153,14 +153,14 @@ def test_step(model, test_loader, criterion, device, epoch=0., silent=False, wri
 
 
 def train_model(model, trainset, batch_size=1, criterion_train=None, criterion_test=None, testset=None,
-                device=None, num_workers=10, lr=0.1, momentum=0.5, lr_step=30, lr_gamma=0.1, resume=None,
+                device=None, num_workers=10, lr=0.1, momentum=0.5, lr_step=30, lr_gamma=0.0001, resume=None,
                 epochs=2, log_interval=100, weighted_loss=False, checkpoint_suffix='', optimizer=None, scheduler=None,
                 writer=None, **kwargs):
     if device is None:
         device = torch.device('cuda')
 
     # Data loaders
-    train_loader = DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
+    train_loader = DataLoader(trainset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
     if testset is not None:
         test_loader = DataLoader(testset, batch_size=batch_size, shuffle=False, num_workers=num_workers,
                                  pin_memory=True)

@@ -80,18 +80,23 @@ modelfamily_to_mean_std = {
 modelfamily_to_transforms = {
     'mnist': {
         'train': transforms.Compose([
+            transforms.Resize(224),
             transforms.ToTensor(),
+            transforms.Lambda(lambda x: x.repeat(3,1,1)),
             transforms.Normalize((0.1307,), (0.3081,))
         ]),
         'test': transforms.Compose([
+            transforms.Resize(224),
             transforms.ToTensor(),
+            transforms.Lambda(lambda x: x.repeat(3,1,1)),
             transforms.Normalize((0.1307,), (0.3081,))
         ]),
         'toResnet': transforms.Compose([
             transforms.Resize(224),
             transforms.ToTensor(),
             transforms.Lambda(lambda x: x.repeat(3,1,1)),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+            # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+            transforms.Normalize((0.1307,), (0.3081,))
         ])
     },
 
