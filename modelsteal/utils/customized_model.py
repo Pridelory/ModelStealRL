@@ -65,7 +65,7 @@ def soft_cross_entropy(pred, soft_targets, weights=None):
         return torch.mean(torch.sum(- soft_targets * F.log_softmax(pred, dim=1), 1))
 
 
-def train_step(model, train_loader, criterion, optimizer, epoch, device, log_interval=10, writer=None):
+def train_step(model, train_loader, criterion, optimizer, epoch, device, log_interval=100, writer=None):
     model.train()
     train_loss = 0.
     correct = 0
@@ -153,8 +153,8 @@ def test_step(model, test_loader, criterion, device, epoch=0., silent=False, wri
 
 
 def train_model(model, trainset, batch_size=1, criterion_train=None, criterion_test=None, testset=None,
-                device=None, num_workers=10, lr=0.1, momentum=0.5, lr_step=30, lr_gamma=0.0001, resume=None,
-                epochs=2, log_interval=100, weighted_loss=False, checkpoint_suffix='', optimizer=None, scheduler=None,
+                device=None, num_workers=10, lr=0.1, momentum=0.5, lr_step=30, lr_gamma=0.1, resume=None,
+                epochs=10, log_interval=5, weighted_loss=False, checkpoint_suffix='', optimizer=None, scheduler=None,
                 writer=None, **kwargs):
     if device is None:
         device = torch.device('cuda')

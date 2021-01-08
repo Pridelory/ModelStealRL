@@ -55,7 +55,7 @@ class Blackbox(object):
         if not osp.exists(checkpoint_path):
             checkpoint_path = osp.join(model_dir, 'checkpoint.pth.tar')
         print("=> loading checkpoint '{}'".format(checkpoint_path))
-        checkpoint = torch.load(checkpoint_path)
+        checkpoint = torch.load(checkpoint_path, map_location='cpu')
         epoch = checkpoint['epoch']
         best_test_acc = checkpoint['best_acc']
         model.load_state_dict(checkpoint['state_dict'])
@@ -97,6 +97,8 @@ class Blackbox(object):
 
     def get_call_count(self):
         return self.__call_count
+
+
 
     def __call__(self, query_input):
         TypeCheck.multiple_image_blackbox_input_tensor(query_input)

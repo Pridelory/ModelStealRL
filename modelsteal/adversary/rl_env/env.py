@@ -1,11 +1,8 @@
 import torchvision
 import torch.nn as nn
-from modelsteal.adversary.adaptive.strategy import DecisionBoundStrategy
-from modelsteal.utils import utils
-from modelsteal.adversary.adaptive.reward_strategy import RewardStrategy
-import modelsteal.utils.customized_model as model_utils
-from torch.utils.data import TensorDataset
-from torch.utils.data import DataLoader
+from modelsteal.adversary.adaptive.strategy import KmaxStrategy, DecisionBoundStrategy, Strategy
+from modelsteal.adversary.adaptive.transfer import Transfer
+import modelsteal.adversary.adaptive.prepare as prepare
 import torch.nn.functional as F
 
 class TrainSet(object):
@@ -31,14 +28,36 @@ class Reset(nn.Module):
         x = F.softmax(x)
         return x
 
+class LeNet(nn.Module):
+    """A simple MNIST network
+
+    Source: https://github.com/pytorch/examples/blob/master/mnist/main.py
+    """
+    def __init__(self, num_classes=10, **kwargs):
+        super().__init__()
+        self.conv1 = nn.Conv2d(1, 20, 5, 1)
+        self.conv2 = nn.Conv2d(20, 50, 5, 1)
+        self.fc1 = nn.Linear(4*4*50, 500)
+        self.fc2 = nn.Linear(500, num_classes)
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = F.max_pool2d(x, 2, 2)
+        x = F.relu(self.conv2(x))
+        x = F.max_pool2d(x, 2, 2)
+        x = x.view(-1, 4*4*50)
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
+        return x
 
 class Step:
-    def __init__(self, action, state, victim_model, victim_queryset, queryset, batch_size, budget, device):
+    def __init__(self, action, state, victim_model, victim_queryset, victim_testset, queryset, batch_size, budget, device):
         super(Step, self).__init__()
         self.action = action
         self.state = state
         self.victim_model = victim_model
         self.victim_queryset = victim_queryset
+        self.victim_testset = victim_testset
         self.queryset = queryset
         self.batch_size = batch_size
         self.budget = budget
@@ -46,37 +65,32 @@ class Step:
 
     def step(self, j):
         """
-        1.数据集根据state网络分成不同决策边界的cluster，
-        2.action去选择某个特定的cluster i的前k个样本
-        3.用选出的样本去查victim model，把结果与当前结果算出reward；
-        4.用此cluster更新state为new_state
+        1.根据action选策略
+        2.用选出的样本去查victim model，把结果与当前结果算出reward；
+        3.用此cluster更新state为new_state
         """
-        # 根据当前state网络逻辑划分数据集
-        strategy = DecisionBoundStrategy(self.state, self.queryset, self.batch_size, self.budget)
-        db_indice_list = strategy.get_db_result(j)
+        strategy = Strategy()
+        if self.action == 0:
+            strategy = DecisionBoundStrategy(self.state, self.queryset, self.batch_size, self.budget)
+        elif self.action == 1 :
+            strategy = KmaxStrategy(self.state, self.queryset, self.batch_size, self.budget)
 
-        print(len(set(db_indice_list)))
-        # action去选择某个特定的cluster i的前k个样本
-        # 获取victim的query set下标
-        index_list = [i for i in range(len(db_indice_list)) if db_indice_list[i] == self.action]
-
-        # if j == 0:
-        #     index_list = [38]
-
-        # 根据index_list选样本
-        local_choosen_samples = utils.get_trainingdata_by_index(self.queryset, index_list)
-        victim_choosen_samples = utils.get_trainingdata_by_index(self.victim_queryset, index_list)
-
-        # temp_image = tensor_to_pil(victim_choosen_samples[1])
-        # temp_image.show()
+        # 根据action选定的策略获取数据集下标
+        db_indice_list = strategy.get_result(100)
 
         # 用choosen_samples分别查victim model 和 substitude model算reward
-        reward_strategy = RewardStrategy(local_choosen_samples, victim_choosen_samples, victim_model=self.victim_model,
+        transfer = Transfer(db_indice_list, self.queryset, victim_model=self.victim_model,
                                          substitude_model=self.state)
-        reward = reward_strategy.count_by_kld()
+        reward = transfer.get_reward()
 
         # 用此cluster更新state为new_state
-        victim_trained_info = reward_strategy.get_victim_trained_info()
-        trainset = TensorDataset(local_choosen_samples, victim_trained_info)
-        new_state = model_utils.train_model(self.state, trainset, device=self.device)
-        return self.state, reward
+        updateset = transfer.get_update_set()
+        # update the substitude model
+        new_state = prepare.train(self.state, updateset, self.victim_testset, device=self.device)
+        return new_state, reward
+
+
+
+
+
+

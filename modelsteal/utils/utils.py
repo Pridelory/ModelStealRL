@@ -93,3 +93,7 @@ def get_trainingdata_by_index(queryset, index_list):
     :return:
     """
     return torch.stack([queryset[i][0] for i in index_list])
+
+
+
+

@@ -11,6 +11,7 @@ import os
 from modelsteal import datasets
 from scipy.special import comb
 from modelsteal.victim.blackbox import Blackbox
+import modelsteal.models.zoo as zoo
 
 
 def get_model(inputs_shape, output_shape):
@@ -46,6 +47,7 @@ def main():
     # parser.add_argument('-e', '--epochs', type=int, default=100, metavar='N',
     #                     help='number of epochs to train (default: 100)')
     parser.add_argument('--queryset', metavar='TYPE', type=str, help='Adversary\'s dataset (P_A(X))', required=True)
+    parser.add_argument('--victim_dataset', metavar='DS_NAME', type=str, help='dataset of vicim model')
     parser.add_argument('--modelfamily', metavar='TYPE', type=str, help='Model family', default=None)
     parser.add_argument('--batch_size', metavar='TYPE', type=int, help='Batch size of queries', default=8)
     parser.add_argument('-d', '--device_id', metavar='D', type=int, help='Device id. -1 for CPU.', default=-1)
@@ -90,7 +92,7 @@ def main():
     if queryset_name not in valid_datasets:
         raise ValueError('Dataset not found. Valid arguments = {}'.format(valid_datasets))
     modelfamily = datasets.dataset_to_modelfamily[queryset_name] if params['modelfamily'] is None else params['modelfamily']
-    transform = datasets.modelfamily_to_transforms[modelfamily]['toResnet']
+    transform = datasets.modelfamily_to_transforms[modelfamily]['train']
     if queryset_name == 'ImageFolder':
         assert params['root'] is not None, 'argument "--root ROOT" required for ImageFolder'
         queryset = datasets.__dict__[queryset_name](root=params['root'], transform=transform)
@@ -101,10 +103,17 @@ def main():
     transform = datasets.modelfamily_to_transforms[modelfamily]['train']
     victim_queryset = datasets.__dict__[queryset_name](train=True, transform=transform)
 
-    # classes of dataset
-    class_size = len(queryset.classes)
-    # comb_num is the output dimension of q_network
-    comb_num = int(comb(class_size, 2))
+    # ----------- Set up testset -----------
+    dataset_name = params['victim_dataset']
+    valid_datasets = datasets.__dict__.keys()
+    if dataset_name not in valid_datasets:
+        raise ValueError('Dataset not found. Valid arguments = {}'.format(valid_datasets))
+    dataset = datasets.__dict__[dataset_name]
+    test_transform = datasets.modelfamily_to_transforms[modelfamily]['test']
+    testset = dataset(train=False, transform=test_transform)
+
+    # num of actions
+    action_num = 2
 
     # 按episode循环
     for i in range(1):
@@ -112,8 +121,8 @@ def main():
         # 重置环境初始状态
         # 初始化一个substitude model
         # state = env.Reset(pretrained=True, output_classes=class_size)
-        state = Blackbox.from_modeldir(params['substitude_model_dir'], device)
-        # state = zoo.get_net('lenet', 'mnist', pretrained=True, num_classes= class_size)
+        state = Blackbox.from_modeldir(params['substitude_model_dir'], device).get_model()
+        # state = zoo.get_net('lenet', 'mnist', pretrained=False, num_classes= class_size)
         state.to(device)
         # for batch_idx, (data, target) in enumerate(queryset):
         rAll = 0
@@ -123,7 +132,7 @@ def main():
             weight_list = utils.extract_parameter(state)
 
             # 初始化Q network
-            q_network = get_model([None, len(weight_list)], comb_num)
+            q_network = get_model([None, len(weight_list)], action_num)
             q_network.train()
             train_weights = q_network.trainable_weights  # 模型的参数
             optimizer = tf.optimizers.SGD(learning_rate=0.1)  # 定义优化器
@@ -136,7 +145,7 @@ def main():
             a = np.argmax(allQ, 1)
 
             victim_model = Blackbox.from_modeldir(params['victim_model_dir'], device)
-            step = env.Step(action=a, state=state, victim_model=victim_model , victim_queryset=victim_queryset, queryset=queryset, batch_size=params['batch_size'], budget=params['budget'], device=device)
+            step = env.Step(action=a, state=state, victim_model=victim_model , victim_queryset=victim_queryset, victim_testset= testset, queryset=queryset, batch_size=params['batch_size'], budget=params['budget'], device=device)
             # 输入到环境，获得下一步的state，reward，done
             new_state, reward = step.step(j)
 
